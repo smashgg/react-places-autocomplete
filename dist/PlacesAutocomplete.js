@@ -174,7 +174,9 @@ var PlacesAutocomplete = function (_React$Component) {
 
       switch (event.keyCode) {
         case ENTER_KEY:
-          event.preventDefault();
+          if (this.state.autocompleteItems && this.state.autocompleteItems.length) {
+            event.preventDefault();
+          }
           this._handleEnterKey();
           break;
         case ARROW_DOWN:
