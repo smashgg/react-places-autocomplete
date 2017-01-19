@@ -139,6 +139,10 @@ class PlacesAutocomplete extends React.Component {
         this._handleUpKey()
         break
     }
+
+    if (typeof this.props.onKeyDown === 'function') {
+      this.props.onKeyDown(event);
+    }
   }
 
   _setActiveItemAtIndex(index) {

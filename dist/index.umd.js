@@ -262,6 +262,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	          this._handleUpKey();
 	          break;
 	      }
+	
+	      if (typeof this.props.onKeyDown === 'function') {
+	        this.props.onKeyDown(event);
+	      }
 	    }
 	  }, {
 	    key: '_setActiveItemAtIndex',

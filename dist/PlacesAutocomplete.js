@@ -184,6 +184,10 @@ var PlacesAutocomplete = function (_React$Component) {
           this._handleUpKey();
           break;
       }
+
+      if (typeof this.props.onKeyDown === 'function') {
+        this.props.onKeyDown(event);
+      }
     }
   }, {
     key: '_setActiveItemAtIndex',
