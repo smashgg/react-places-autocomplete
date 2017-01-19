@@ -49,7 +49,13 @@ class PlacesAutocomplete extends React.Component {
   }
 
   autocompleteCallback(predictions, status) {
-    if (status != this.autocompleteOK) { console.error('place autocomplete failed'); return; }
+    if (status != this.autocompleteOK) {
+      // TODO Actually handle errors
+      this.setState({
+        autocompleteItems: []
+      });
+      return;
+    }
     this.setState({
       autocompleteItems: predictions.map((p, idx) => ({
         suggestion: p.description,
