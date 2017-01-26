@@ -84,6 +84,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 	
+	var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+	
 	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 	
 	var _react = __webpack_require__(2);
@@ -149,8 +151,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	  _createClass(PlacesAutocomplete, [{
 	    key: 'componentDidMount',
 	    value: function componentDidMount() {
-	      this.autocompleteService = new google.maps.places.AutocompleteService();
-	      this.autocompleteOK = google.maps.places.PlacesServiceStatus.OK;
+	      this.initAutoComplete();
+	    }
+	  }, {
+	    key: 'initAutoComplete',
+	    value: function initAutoComplete() {
+	      if ((typeof google === 'undefined' ? 'undefined' : _typeof(google)) === 'object' && google.maps && google.maps.places && google.maps.places.AutocompleteService) {
+	        this.autocompleteService = new google.maps.places.AutocompleteService();
+	        this.autocompleteOK = google.maps.places.PlacesServiceStatus.OK;
+	      } else {
+	        setTimeout(this.initAutoComplete.bind(this), 200);
+	      }
 	    }
 	  }, {
 	    key: 'autocompleteCallback',

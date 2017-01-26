@@ -44,8 +44,16 @@ class PlacesAutocomplete extends React.Component {
   }
 
   componentDidMount() {
-    this.autocompleteService = new google.maps.places.AutocompleteService()
-    this.autocompleteOK = google.maps.places.PlacesServiceStatus.OK
+    this.initAutoComplete();
+  }
+
+  initAutoComplete() {
+    if (typeof google === 'object' && google.maps && google.maps.places && google.maps.places.AutocompleteService) {
+      this.autocompleteService = new google.maps.places.AutocompleteService()
+      this.autocompleteOK = google.maps.places.PlacesServiceStatus.OK
+    } else {
+      setTimeout(this.initAutoComplete.bind(this), 200);
+    }
   }
 
   autocompleteCallback(predictions, status) {
