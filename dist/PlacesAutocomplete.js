@@ -6,13 +6,21 @@ Object.defineProperty(exports, "__esModule", {
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 var _react = require('react');
 
 var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = require('prop-types');
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _lodash = require('lodash.debounce');
+
+var _lodash2 = _interopRequireDefault(_lodash);
+
+var _helpers = require('./helpers');
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20,38 +28,18 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               * Copyright (c) 2016-present, Ken Hibino.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               * Licensed under the MIT License (MIT).
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               * See https://kenny-hibino.github.io/react-places-autocomplete
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
-var defaultStyles = {
-  root: {
-    position: 'relative',
-    paddingBottom: '0px'
-  },
-  autocompleteOverlay: {
-    position: 'fixed',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 9998
-  },
-  autocompleteContainer: {
-    position: 'absolute',
-    top: '100%',
-    backgroundColor: 'white',
-    border: '1px solid #555',
-    width: '100%',
-    zIndex: 9999
-  },
-  autocompleteItem: {
-    backgroundColor: '#ffffff',
-    padding: '10px',
-    color: '#555',
-    cursor: 'pointer'
-  },
-  autocompleteItemActive: {
-    backgroundColor: '#fafafa'
-  }
+// transform snake_case to camelCase
+var formattedSuggestion = function formattedSuggestion(structured_formatting) {
+  return {
+    mainText: structured_formatting.main_text,
+    secondaryText: structured_formatting.secondary_text
+  };
 };
 
 var PlacesAutocomplete = function (_React$Component) {
@@ -62,297 +50,337 @@ var PlacesAutocomplete = function (_React$Component) {
 
     var _this = _possibleConstructorReturn(this, (PlacesAutocomplete.__proto__ || Object.getPrototypeOf(PlacesAutocomplete)).call(this, props));
 
-    _this.state = { autocompleteItems: [] };
+    _this.init = function () {
+      if (!window.google) {
+        throw new Error('[react-places-autocomplete]: Google Maps JavaScript API library must be loaded. See: https://github.com/kenny-hibino/react-places-autocomplete#load-google-library');
+      }
 
-    _this.autocompleteCallback = _this.autocompleteCallback.bind(_this);
-    _this.handleInputKeyDown = _this.handleInputKeyDown.bind(_this);
-    _this.handleInputChange = _this.handleInputChange.bind(_this);
+      if (!window.google.maps.places) {
+        throw new Error('[react-places-autocomplete]: Google Maps Places library must be loaded. Please add `libraries=places` to the src URL. See: https://github.com/kenny-hibino/react-places-autocomplete#load-google-library');
+      }
+
+      _this.autocompleteService = new window.google.maps.places.AutocompleteService();
+      _this.autocompleteOK = window.google.maps.places.PlacesServiceStatus.OK;
+      _this.setState(function (state) {
+        if (state.ready) {
+          return null;
+        } else {
+          return { ready: true };
+        }
+      });
+    };
+
+    _this.autocompleteCallback = function (predictions, status) {
+      _this.setState({ loading: false });
+      if (status !== _this.autocompleteOK) {
+        _this.props.onError(status, _this.clearSuggestions);
+        return;
+      }
+      var highlightFirstSuggestion = _this.props.highlightFirstSuggestion;
+
+      _this.setState({
+        suggestions: predictions.map(function (p, idx) {
+          return {
+            id: p.id,
+            description: p.description,
+            placeId: p.place_id,
+            active: highlightFirstSuggestion && idx === 0 ? true : false,
+            index: idx,
+            formattedSuggestion: formattedSuggestion(p.structured_formatting),
+            matchedSubstrings: p.matched_substrings,
+            terms: p.terms,
+            types: p.types
+          };
+        })
+      });
+    };
+
+    _this.fetchPredictions = function () {
+      var value = _this.props.value;
+
+      if (value.length) {
+        _this.setState({ loading: true });
+        _this.autocompleteService.getPlacePredictions(_extends({}, _this.props.searchOptions, {
+          input: value
+        }), _this.autocompleteCallback);
+      }
+    };
+
+    _this.clearSuggestions = function () {
+      _this.setState({ suggestions: [] });
+    };
+
+    _this.clearActive = function () {
+      _this.setState({
+        suggestions: _this.state.suggestions.map(function (suggestion) {
+          return _extends({}, suggestion, {
+            active: false
+          });
+        })
+      });
+    };
+
+    _this.handleSelect = function (address, placeId) {
+      _this.clearSuggestions();
+      if (_this.props.onSelect) {
+        _this.props.onSelect(address, placeId);
+      } else {
+        _this.props.onChange(address);
+      }
+    };
+
+    _this.getActiveSuggestion = function () {
+      return _this.state.suggestions.find(function (suggestion) {
+        return suggestion.active;
+      });
+    };
+
+    _this.selectActiveAtIndex = function (index) {
+      var activeName = _this.state.suggestions.find(function (suggestion) {
+        return suggestion.index === index;
+      }).description;
+      _this.setActiveAtIndex(index);
+      _this.props.onChange(activeName);
+    };
+
+    _this.selectUserInputValue = function () {
+      _this.clearActive();
+      _this.props.onChange(_this.state.userInputValue);
+    };
+
+    _this.handleEnterKey = function (e) {
+      var activeSuggestion = _this.getActiveSuggestion();
+      if (activeSuggestion === undefined) {
+        _this.handleSelect(_this.props.value, null);
+        _this.props.onKeyDown && _this.props.onKeyDown(e);
+      } else {
+        _this.handleSelect(activeSuggestion.description, activeSuggestion.placeId);
+      }
+    };
+
+    _this.handleDownKey = function () {
+      if (_this.state.suggestions.length === 0) {
+        return;
+      }
+
+      var activeSuggestion = _this.getActiveSuggestion();
+      if (activeSuggestion === undefined) {
+        _this.selectActiveAtIndex(0);
+      } else if (activeSuggestion.index === _this.state.suggestions.length - 1) {
+        _this.selectUserInputValue();
+      } else {
+        _this.selectActiveAtIndex(activeSuggestion.index + 1);
+      }
+    };
+
+    _this.handleUpKey = function () {
+      if (_this.state.suggestions.length === 0) {
+        return;
+      }
+
+      var activeSuggestion = _this.getActiveSuggestion();
+      if (activeSuggestion === undefined) {
+        _this.selectActiveAtIndex(_this.state.suggestions.length - 1);
+      } else if (activeSuggestion.index === 0) {
+        _this.selectUserInputValue();
+      } else {
+        _this.selectActiveAtIndex(activeSuggestion.index - 1);
+      }
+    };
+
+    _this.handleInputKeyDown = function (event) {
+      /* eslint-disable indent */
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault();
+          _this.handleEnterKey(event);
+          break;
+        case 'ArrowDown':
+          event.preventDefault(); // prevent the cursor from moving
+          _this.handleDownKey();
+          break;
+        case 'ArrowUp':
+          event.preventDefault(); // prevent the cursor from moving
+          _this.handleUpKey();
+          break;
+        case 'Escape':
+          _this.clearSuggestions();
+          break;
+      }
+      /* eslint-enable indent */
+    };
+
+    _this.setActiveAtIndex = function (index) {
+      _this.setState({
+        suggestions: _this.state.suggestions.map(function (suggestion, idx) {
+          if (idx === index) {
+            return _extends({}, suggestion, { active: true });
+          } else {
+            return _extends({}, suggestion, { active: false });
+          }
+        })
+      });
+    };
+
+    _this.handleInputChange = function (event) {
+      var value = event.target.value;
+
+      _this.props.onChange(value);
+      _this.setState({ userInputValue: value });
+      if (!value) {
+        _this.clearSuggestions();
+        return;
+      }
+      if (_this.props.shouldFetchSuggestions) {
+        _this.debouncedFetchPredictions();
+      }
+    };
+
+    _this.handleInputOnBlur = function () {
+      if (!_this.mousedownOnSuggestion) {
+        _this.clearSuggestions();
+      }
+    };
+
+    _this.getActiveSuggestionId = function () {
+      var activeSuggestion = _this.getActiveSuggestion();
+      return activeSuggestion ? 'PlacesAutocomplete__suggestion-' + activeSuggestion.placeId : null;
+    };
+
+    _this.getIsExpanded = function () {
+      return _this.state.suggestions.length > 0;
+    };
+
+    _this.getInputProps = function () {
+      var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+
+      if (options.hasOwnProperty('value')) {
+        throw new Error('[react-places-autocomplete]: getInputProps does not accept `value`. Use `value` prop instead');
+      }
+
+      if (options.hasOwnProperty('onChange')) {
+        throw new Error('[react-places-autocomplete]: getInputProps does not accept `onChange`. Use `onChange` prop instead');
+      }
+
+      var defaultInputProps = {
+        type: 'text',
+        autoComplete: 'off',
+        role: 'combobox',
+        'aria-autocomplete': 'list',
+        'aria-expanded': _this.getIsExpanded(),
+        'aria-activedescendant': _this.getActiveSuggestionId(),
+        disabled: !_this.state.ready
+      };
+
+      return _extends({}, defaultInputProps, options, {
+        onKeyDown: (0, _helpers.compose)(_this.handleInputKeyDown, options.onKeyDown),
+        onBlur: (0, _helpers.compose)(_this.handleInputOnBlur, options.onBlur),
+        value: _this.props.value,
+        onChange: function onChange(event) {
+          _this.handleInputChange(event);
+        }
+      });
+    };
+
+    _this.getSuggestionItemProps = function (suggestion) {
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+      var handleSuggestionMouseEnter = _this.handleSuggestionMouseEnter.bind(_this, suggestion.index);
+      var handleSuggestionClick = _this.handleSuggestionClick.bind(_this, suggestion);
+
+      return _extends({}, options, {
+        key: suggestion.id,
+        id: _this.getActiveSuggestionId(),
+        role: 'option',
+        onMouseEnter: (0, _helpers.compose)(handleSuggestionMouseEnter, options.onMouseEnter),
+        onMouseLeave: (0, _helpers.compose)(_this.handleSuggestionMouseLeave, options.onMouseLeave),
+        onMouseDown: (0, _helpers.compose)(_this.handleSuggestionMouseDown, options.onMouseDown),
+        onMouseUp: (0, _helpers.compose)(_this.handleSuggestionMouseUp, options.onMouseUp),
+        onTouchStart: (0, _helpers.compose)(_this.handleSuggestionTouchStart, options.onTouchStart),
+        onTouchEnd: (0, _helpers.compose)(_this.handleSuggestionMouseUp, options.onTouchEnd),
+        onClick: (0, _helpers.compose)(handleSuggestionClick, options.onClick)
+      });
+    };
+
+    _this.handleSuggestionMouseEnter = function (index) {
+      _this.setActiveAtIndex(index);
+    };
+
+    _this.handleSuggestionMouseLeave = function () {
+      _this.mousedownOnSuggestion = false;
+      _this.clearActive();
+    };
+
+    _this.handleSuggestionMouseDown = function (event) {
+      event.preventDefault();
+      _this.mousedownOnSuggestion = true;
+    };
+
+    _this.handleSuggestionTouchStart = function () {
+      _this.mousedownOnSuggestion = true;
+    };
+
+    _this.handleSuggestionMouseUp = function () {
+      _this.mousedownOnSuggestion = false;
+    };
+
+    _this.handleSuggestionClick = function (suggestion, event) {
+      if (event && event.preventDefault) {
+        event.preventDefault();
+      }
+      var description = suggestion.description,
+          placeId = suggestion.placeId;
+
+      _this.handleSelect(description, placeId);
+      setTimeout(function () {
+        _this.mousedownOnSuggestion = false;
+      });
+    };
+
+    _this.state = {
+      loading: false,
+      suggestions: [],
+      userInputValue: props.value,
+      ready: !props.googleCallbackName
+    };
+
+    _this.debouncedFetchPredictions = (0, _lodash2.default)(_this.fetchPredictions, _this.props.debounce);
     return _this;
   }
 
   _createClass(PlacesAutocomplete, [{
     key: 'componentDidMount',
     value: function componentDidMount() {
-      this.initAutoComplete();
-    }
-  }, {
-    key: 'initAutoComplete',
-    value: function initAutoComplete() {
-      if ((typeof google === 'undefined' ? 'undefined' : _typeof(google)) === 'object' && google.maps && google.maps.places && google.maps.places.AutocompleteService) {
-        this.autocompleteService = new google.maps.places.AutocompleteService();
-        this.autocompleteOK = google.maps.places.PlacesServiceStatus.OK;
-      } else {
-        setTimeout(this.initAutoComplete.bind(this), 200);
-      }
-    }
-  }, {
-    key: 'autocompleteCallback',
-    value: function autocompleteCallback(predictions, status) {
-      if (status != this.autocompleteOK) {
-        // TODO Actually handle errors
-        this.setState({
-          autocompleteItems: []
-        });
-        return;
-      }
-      this.setState({
-        autocompleteItems: predictions.map(function (p, idx) {
-          return {
-            suggestion: p.description,
-            placeId: p.place_id,
-            active: false,
-            index: idx
-          };
-        })
-      });
-    }
-  }, {
-    key: 'clearAutocomplete',
-    value: function clearAutocomplete() {
-      this.setState({ autocompleteItems: [] });
-    }
-  }, {
-    key: 'selectAddress',
-    value: function selectAddress(address) {
-      this.clearAutocomplete();
-      this._handleSelect(address);
-    }
-  }, {
-    key: '_handleSelect',
-    value: function _handleSelect(address) {
-      this.props.onSelect ? this.props.onSelect(address) : this.props.onChange(address);
-    }
-  }, {
-    key: '_getActiveItem',
-    value: function _getActiveItem() {
-      return this.state.autocompleteItems.find(function (item) {
-        return item.active;
-      });
-    }
-  }, {
-    key: '_selectActiveItemAtIndex',
-    value: function _selectActiveItemAtIndex(index) {
-      var activeName = this.state.autocompleteItems.find(function (item) {
-        return item.index === index;
-      }).suggestion;
-      this._setActiveItemAtIndex(index);
-      this.props.onChange(activeName);
-    }
-  }, {
-    key: '_handleEnterKey',
-    value: function _handleEnterKey() {
-      var activeItem = this._getActiveItem();
-      if (activeItem === undefined) {
-        return;
-      }
+      var googleCallbackName = this.props.googleCallbackName;
 
-      this.clearAutocomplete();
-      this._handleSelect(activeItem.suggestion);
-    }
-  }, {
-    key: '_handleDownKey',
-    value: function _handleDownKey() {
-      var activeItem = this._getActiveItem();
-      if (activeItem === undefined) {
-        this._selectActiveItemAtIndex(0);
-      } else {
-        var nextIndex = (activeItem.index + 1) % this.state.autocompleteItems.length;
-        this._selectActiveItemAtIndex(nextIndex);
-      }
-    }
-  }, {
-    key: '_handleUpKey',
-    value: function _handleUpKey() {
-      var activeItem = this._getActiveItem();
-      if (activeItem === undefined) {
-        this._selectActiveItemAtIndex(this.state.autocompleteItems.length - 1);
-      } else {
-        var prevIndex = void 0;
-        if (activeItem.index === 0) {
-          prevIndex = this.state.autocompleteItems.length - 1;
+      if (googleCallbackName) {
+        if (!window.google) {
+          window[googleCallbackName] = this.init;
         } else {
-          prevIndex = (activeItem.index - 1) % this.state.autocompleteItems.length;
+          this.init();
         }
-        this._selectActiveItemAtIndex(prevIndex);
-      }
-    }
-  }, {
-    key: 'handleInputKeyDown',
-    value: function handleInputKeyDown(event) {
-      var ARROW_UP = 38;
-      var ARROW_DOWN = 40;
-      var ENTER_KEY = 13;
-
-      switch (event.keyCode) {
-        case ENTER_KEY:
-          if (this.state.autocompleteItems && this.state.autocompleteItems.length) {
-            event.preventDefault();
-          }
-          this._handleEnterKey();
-          break;
-        case ARROW_DOWN:
-          this._handleDownKey();
-          break;
-        case ARROW_UP:
-          this._handleUpKey();
-          break;
-      }
-
-      if (typeof this.props.onKeyDown === 'function') {
-        this.props.onKeyDown(event);
-      }
-    }
-  }, {
-    key: '_setActiveItemAtIndex',
-    value: function _setActiveItemAtIndex(index) {
-      this.setState({
-        autocompleteItems: this.state.autocompleteItems.map(function (item, idx) {
-          if (idx === index) {
-            return _extends({}, item, { active: true });
-          } else {
-            return _extends({}, item, { active: false });
-          }
-        })
-      });
-    }
-  }, {
-    key: 'handleInputChange',
-    value: function handleInputChange(event) {
-      this.props.onChange(event.target.value);
-      if (!event.target.value) {
-        this.clearAutocomplete();
-        return;
-      }
-      this.autocompleteService.getPlacePredictions(_extends({}, this.props.options, { input: event.target.value }), this.autocompleteCallback);
-    }
-  }, {
-    key: 'autocompleteItemStyle',
-    value: function autocompleteItemStyle(active) {
-      if (active) {
-        return _extends({}, defaultStyles.autocompleteItemActive, this.props.styles.autocompleteItemActive);
       } else {
-        return {};
+        this.init();
       }
     }
   }, {
-    key: 'renderLabel',
-    value: function renderLabel() {
-      if (this.props.hideLabel) {
-        return null;
+    key: 'componentWillUnmount',
+    value: function componentWillUnmount() {
+      var googleCallbackName = this.props.googleCallbackName;
+
+      if (googleCallbackName && window[googleCallbackName]) {
+        delete window[googleCallbackName];
       }
-      return _react2.default.createElement(
-        'label',
-        { style: this.props.styles.label, className: this.props.classNames.label || '' },
-        'Location'
-      );
     }
-  }, {
-    key: 'renderOverlay',
-    value: function renderOverlay() {
-      var _this2 = this;
-
-      if (this.state.autocompleteItems.length === 0) {
-        return null;
-      }
-      return _react2.default.createElement('div', {
-        className: 'PlacesAutocomplete__overlay',
-        style: defaultStyles.autocompleteOverlay,
-        onClick: function onClick() {
-          return _this2.clearAutocomplete();
-        } });
-    }
-  }, {
-    key: 'renderAutocomplete',
-    value: function renderAutocomplete() {
-      var _this3 = this;
-
-      var autocompleteItems = this.state.autocompleteItems;
-      var styles = this.props.styles;
-
-      if (autocompleteItems.length === 0) {
-        return null;
-      }
-      return _react2.default.createElement(
-        'div',
-        {
-          id: 'PlacesAutocomplete__autocomplete-container',
-          className: this.props.classNames.autocompleteContainer || '',
-          style: _extends({}, defaultStyles.autocompleteContainer, styles.autocompleteContainer) },
-        autocompleteItems.map(function (p, idx) {
-          return _react2.default.createElement(
-            'div',
-            {
-              key: p.placeId,
-              onMouseOver: function onMouseOver() {
-                return _this3._setActiveItemAtIndex(p.index);
-              },
-              onClick: function onClick() {
-                return _this3.selectAddress(p.suggestion);
-              },
-              style: _extends({}, defaultStyles.autocompleteItem, styles.autocompleteItem, _this3.autocompleteItemStyle(p.active)) },
-            _this3.props.autocompleteItem({ suggestion: p.suggestion })
-          );
-        })
-      );
-    }
-  }, {
-    key: 'renderCustomInput',
-    value: function renderCustomInput() {
-      var _props = this.props,
-          children = _props.children,
-          autoFocus = _props.autoFocus,
-          value = _props.value;
-
-      return _react2.default.cloneElement(children, {
-        onChange: this.handleInputChange,
-        onKeyDown: this.handleInputKeyDown,
-        autoFocus: autoFocus,
-        value: value
-      });
-    }
-  }, {
-    key: 'renderDefaultInput',
-    value: function renderDefaultInput() {
-      var _props2 = this.props,
-          classNames = _props2.classNames,
-          placeholder = _props2.placeholder,
-          styles = _props2.styles,
-          value = _props2.value,
-          autoFocus = _props2.autoFocus;
-
-      return _react2.default.createElement('input', {
-        type: 'text',
-        placeholder: placeholder,
-        className: classNames.input || '',
-        value: value,
-        onChange: this.handleInputChange,
-        onKeyDown: this.handleInputKeyDown,
-        style: styles.input,
-        autoFocus: autoFocus
-      });
-    }
-
-    // TODO: remove `classNames.container` in the next version release.
-
   }, {
     key: 'render',
     value: function render() {
-      var _props3 = this.props,
-          classNames = _props3.classNames,
-          children = _props3.children,
-          styles = _props3.styles;
-
-      return _react2.default.createElement(
-        'div',
-        {
-          style: _extends({}, defaultStyles.root, styles.root),
-          className: classNames.root || classNames.container || ''
-        },
-        this.renderLabel(),
-        children ? this.renderCustomInput() : this.renderDefaultInput(),
-        this.renderOverlay(),
-        this.renderAutocomplete()
-      );
+      return this.props.children({
+        getInputProps: this.getInputProps,
+        getSuggestionItemProps: this.getSuggestionItemProps,
+        loading: this.state.loading,
+        suggestions: this.state.suggestions
+      });
     }
   }]);
 
@@ -360,53 +388,35 @@ var PlacesAutocomplete = function (_React$Component) {
 }(_react2.default.Component);
 
 PlacesAutocomplete.propTypes = {
-  children: _react2.default.PropTypes.element,
-  value: _react2.default.PropTypes.string.isRequired,
-  onChange: _react2.default.PropTypes.func.isRequired,
-  onSelect: _react2.default.PropTypes.func,
-  placeholder: _react2.default.PropTypes.string,
-  hideLabel: _react2.default.PropTypes.bool,
-  autoFocus: _react2.default.PropTypes.bool,
-  autocompleteItem: _react2.default.PropTypes.func,
-  classNames: _react2.default.PropTypes.shape({
-    root: _react2.default.PropTypes.string,
-    label: _react2.default.PropTypes.string,
-    input: _react2.default.PropTypes.string,
-    autocompleteContainer: _react2.default.PropTypes.string
+  onChange: _propTypes2.default.func.isRequired,
+  value: _propTypes2.default.string.isRequired,
+  children: _propTypes2.default.func.isRequired,
+  onError: _propTypes2.default.func,
+  onSelect: _propTypes2.default.func,
+  searchOptions: _propTypes2.default.shape({
+    bounds: _propTypes2.default.object,
+    componentRestrictions: _propTypes2.default.object,
+    location: _propTypes2.default.object,
+    offset: _propTypes2.default.oneOfType([_propTypes2.default.number, _propTypes2.default.string]),
+    radius: _propTypes2.default.oneOfType([_propTypes2.default.number, _propTypes2.default.string]),
+    types: _propTypes2.default.array
   }),
-  styles: _react2.default.PropTypes.shape({
-    root: _react2.default.PropTypes.object,
-    label: _react2.default.PropTypes.object,
-    input: _react2.default.PropTypes.object,
-    autocompleteContainer: _react2.default.PropTypes.object,
-    autocompleteItem: _react2.default.PropTypes.object,
-    autocompleteItemActive: _react2.default.PropTypes.object
-  }),
-  options: _react2.default.PropTypes.shape({
-    bounds: _react2.default.PropTypes.object,
-    componentRestrictions: _react2.default.PropTypes.object,
-    location: _react2.default.PropTypes.object,
-    offset: _react2.default.PropTypes.oneOfType([_react2.default.PropTypes.number, _react2.default.PropTypes.string]),
-    radius: _react2.default.PropTypes.oneOfType([_react2.default.PropTypes.number, _react2.default.PropTypes.string]),
-    types: _react2.default.PropTypes.array
-  })
+  debounce: _propTypes2.default.number,
+  highlightFirstSuggestion: _propTypes2.default.bool,
+  shouldFetchSuggestions: _propTypes2.default.bool,
+  googleCallbackName: _propTypes2.default.string
 };
 
 PlacesAutocomplete.defaultProps = {
-  placeholder: 'Address',
-  hideLabel: false,
-  autoFocus: false,
-  classNames: {},
-  autocompleteItem: function autocompleteItem(_ref) {
-    var suggestion = _ref.suggestion;
-    return _react2.default.createElement(
-      'div',
-      null,
-      suggestion
-    );
+  /* eslint-disable no-unused-vars, no-console */
+  onError: function onError(status, _clearSuggestions) {
+    return console.error('[react-places-autocomplete]: error happened when fetching data from Google Maps API.\nPlease check the docs here (https://developers.google.com/maps/documentation/javascript/places#place_details_responses)\nStatus: ', status);
   },
-  styles: {},
-  options: {}
+  /* eslint-enable no-unused-vars, no-console */
+  searchOptions: {},
+  debounce: 200,
+  highlightFirstSuggestion: false,
+  shouldFetchSuggestions: true
 };
 
 exports.default = PlacesAutocomplete;

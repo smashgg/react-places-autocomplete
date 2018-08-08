@@ -1,4 +1,9 @@
 logs
 *.log
 node_modules
+<<<<<<< HEAD
 coverage
+=======
+coverage/
+dist/
+>>>>>>> upstream/master

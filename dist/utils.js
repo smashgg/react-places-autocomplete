@@ -3,23 +3,44 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-var geocodeByAddress = exports.geocodeByAddress = function geocodeByAddress(address, callback) {
-  var geocoder = new google.maps.Geocoder();
-  var OK = google.maps.GeocoderStatus.OK;
+var geocodeByAddress = exports.geocodeByAddress = function geocodeByAddress(address) {
+  var geocoder = new window.google.maps.Geocoder();
+  var OK = window.google.maps.GeocoderStatus.OK;
 
-  geocoder.geocode({ address: address }, function (results, status) {
-    if (status !== OK) {
-      callback({ status: status }, null, null);
-      return;
+  return new Promise(function (resolve, reject) {
+    geocoder.geocode({ address: address }, function (results, status) {
+      if (status !== OK) {
+        reject(status);
+      }
+      resolve(results);
+    });
+  });
+};
+
+var getLatLng = exports.getLatLng = function getLatLng(result) {
+  return new Promise(function (resolve, reject) {
+    try {
+      var latLng = {
+        lat: result.geometry.location.lat(),
+        lng: result.geometry.location.lng()
+      };
+      resolve(latLng);
+    } catch (e) {
+      reject(e);
     }
+  });
+};
 
-    var latLng = {
-      lat: results[0].geometry.location.lat(),
-      lng: results[0].geometry.location.lng()
-    };
+var geocodeByPlaceId = exports.geocodeByPlaceId = function geocodeByPlaceId(placeId) {
+  var geocoder = new window.google.maps.Geocoder();
+  var OK = window.google.maps.GeocoderStatus.OK;
 
-    var placeId = results[0].place_id;
-
-    callback(null, latLng, placeId);
+  return new Promise(function (resolve, reject) {
+    geocoder.geocode({ placeId: placeId }, function (results, status) {
+      if (status !== OK) {
+        reject(status);
+      }
+      resolve(results);
+    });
   });
 };
